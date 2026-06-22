@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+    <!-- Device -->
+    <project name="samsungexynos3475/android_device_samsung_universal3475-common" remote="github" revision="lineage-17.1" path="device/samsung/universal3475-common"/>
+    
+    <!-- Kernel -->
+    <project name="samsungexynos3475/android_kernel_samsung_universal3475" remote="github" revision="lineage-17.1" path="kernel/samsung/universal3475"/>
+
+    <!-- Proprietary Blobs -->
+    <project name="samsungexynos3475/proprietary_vendor_samsung" remote="github" revision="lineage-17.1" path="vendor/samsung"/>
+
+    <!-- Hardware -->
+    <project name="samsungexynos3475/android_hardware_samsung" path="hardware/samsung" remote="github" revision="lineage-17.1" />
+
+    <!-- Exynos SLSI BSP -->
+    <project name="samsungexynos3475/android_hardware_samsung_slsi_exynos3475" path="hardware/samsung_slsi/exynos3475" remote="github" revision="lineage-17.1" />
+    <project name="samsungexynos3475/android_hardware_samsung_slsi_exynos" path="hardware/samsung_slsi/exynos" remote="github" revision="lineage-17.1" />
+    <project name="samsungexynos3475/android_hardware_samsung_slsi_exynos5" path="hardware/samsung_slsi/exynos5" remote="github" revision="lineage-17.1" />
+    <project name="samsungexynos3475/android_hardware_samsung_slsi-openmax" path="hardware/samsung_slsi/openmax" remote="github" revision="lineage-17.1" />
+</manifest>
