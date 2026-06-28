@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
     <!-- on5ltetmo -->
-    <project name="samsungexynos3475/android_device_samsung_on5ltetmo" remote="github" revision="lineage-18.1" path="device/samsung/on5ltetmo"/>
+    <project name="samsungexynos3475/android_device_samsung_on5ltetmo" remote="github" revision="lineage-19.1" path="device/samsung/on5ltetmo"/>
 
     <!-- Exynos 3475 -->
     <include name="local_manifests/default/exynos3475.xml" />

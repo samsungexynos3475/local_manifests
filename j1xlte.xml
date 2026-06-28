@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
     <!-- j1xlte -->
-    <project name="samsungexynos3475/android_device_samsung_j1xlte" remote="github" revision="lineage-18.1" path="device/samsung/j1xlte"/>
+    <project name="samsungexynos3475/android_device_samsung_j1xlte" remote="github" revision="lineage-19.1" path="device/samsung/j1xlte"/>
 
     <!-- Exynos 3475 -->
     <include name="local_manifests/default/exynos3475.xml" />
