@@ -67,39 +67,46 @@ echo "⚙️ Setting up local manifest for '$DEVICE' (LineageOS $VERSION)..."
 
 # Ensure target directory exists
 mkdir -p .repo/local_manifests
+ROOMSERVICE=".repo/local_manifests/roomservices.xml"
 
-# Copy or download common configuration
-if [ -d "$SCRIPT_DIR/default" ] || [ -f "$SCRIPT_DIR/$DEVICE.xml" ]; then
-    echo "📂 Copying local XML files for '$DEVICE' to .repo/local_manifests/..."
-    find "$SCRIPT_DIR" -name "*.xml" -type f | while read -r xml_file; do
-        rel_path="${xml_file#$SCRIPT_DIR/}"
-        if [[ "$rel_path" == */* ]] || [[ "$rel_path" == "$DEVICE.xml" ]]; then
-            mkdir -p ".repo/local_manifests/$(dirname "$rel_path")"
-            cp "$xml_file" ".repo/local_manifests/$rel_path"
-        fi
-    done
-    echo "✅ Copied local configuration files"
+# 1. Copy or download the base device manifest
+if [ -f "$SCRIPT_DIR/$DEVICE.xml" ]; then
+    echo "📂 Using local $DEVICE.xml as base for roomservices.xml..."
+    cat "$SCRIPT_DIR/$DEVICE.xml" > "$ROOMSERVICE"
 else
-    echo "🌐 Local files not found. Fetching all XML configurations from remote..."
-    FILES=$(curl -s "${API_URL}${VERSION}?recursive=1" | grep '"path":' | cut -d '"' -f 4 | grep '\.xml$')
-    
-    if [ -z "$FILES" ]; then
-        echo "❌ Error: Could not fetch file list from remote for lineage-$VERSION, or no XML files found."
+    echo "🌐 Fetching $DEVICE.xml from remote as base for roomservices.xml..."
+    curl -sf "${REPO_URL}${VERSION}/$DEVICE.xml" -o "$ROOMSERVICE"
+    if [ $? -ne 0 ]; then
+        echo "❌ Error: Failed to download $DEVICE.xml"
         exit 1
     fi
-    
-    for file in $FILES; do
-        if [[ "$file" == */* ]] || [[ "$file" == "$DEVICE.xml" ]]; then
-            echo "⬇️ Downloading $file..."
-            mkdir -p ".repo/local_manifests/$(dirname "$file")"
-            curl -sf "${REPO_URL}${VERSION}/$file" -o ".repo/local_manifests/$file"
-            if [ $? -ne 0 ]; then
-                echo "❌ Error: Failed to download $file"
-                exit 1
-            fi
-        fi
-    done
-    echo "✅ Downloaded manifest files for '$DEVICE' successfully."
 fi
+
+# 2. Get the inner content of exynos3475.xml (stripping xml and manifest tags)
+if [ -f "$SCRIPT_DIR/default/exynos3475.xml" ]; then
+    echo "📂 Reading local default/exynos3475.xml to merge..."
+    EXYNOS_CONTENT=$(grep -v '<?xml' "$SCRIPT_DIR/default/exynos3475.xml" | grep -v '<manifest>' | grep -v '</manifest>')
+else
+    echo "🌐 Fetching remote default/exynos3475.xml to merge..."
+    EXYNOS_CONTENT=$(curl -sf "${REPO_URL}${VERSION}/default/exynos3475.xml" | grep -v '<?xml' | grep -v '<manifest>' | grep -v '</manifest>')
+    if [ $? -ne 0 ]; then
+        echo "❌ Error: Failed to download default/exynos3475.xml"
+        exit 1
+    fi
+fi
+
+# 3. Replace the Exynos 3475 include section with the actual content
+awk -v content="$EXYNOS_CONTENT" '
+    /<!-- Exynos 3475 -->/ {
+        # Read the next line which contains the <include ...> tag and discard both
+        getline
+        # Inject the inner content of exynos3475.xml
+        print content
+        next
+    }
+    { print }
+' "$ROOMSERVICE" > "${ROOMSERVICE}.tmp" && mv "${ROOMSERVICE}.tmp" "$ROOMSERVICE"
+
+echo "✅ Successfully generated and merged $ROOMSERVICE"
 
 echo "🎉 Setup complete! You can now run: repo sync"
