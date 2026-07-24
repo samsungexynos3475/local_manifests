@@ -39,50 +39,90 @@ list_devices() {
 }
 
 VERSION="$1"
-DEVICE="$2"
+shift
+DEVICES=("$@")
 REPO="samsungexynos3475/local_manifests"
 REPO_URL="https://raw.githubusercontent.com/$REPO/lineage-"
 API_URL="https://api.github.com/repos/$REPO/git/trees/lineage-"
 
-if [ -z "$VERSION" ] || [ -z "$DEVICE" ]; then
-    echo "❌ Error: Version or Device name not specified."
-    echo "Usage: $0 <version> <device_name> (e.g., $0 17.1 j2lte)"
+if [ -z "$VERSION" ] || [ ${#DEVICES[@]} -eq 0 ]; then
+    echo "❌ Error: Version or Device name(s) not specified."
+    echo "Usage: $0 <version> <device_1> [device_2] ... (e.g., $0 17.1 j2lte j1xlte)"
     echo ""
     list_devices "$VERSION"
     exit 1
 fi
 
-if [ ! -f "$SCRIPT_DIR/$DEVICE.xml" ]; then
-    # Validate against remote devices if local files are missing
-    remote_devices=$(curl -s "${API_URL}${VERSION}?recursive=1" | grep '"path":' | cut -d '"' -f 4 | grep '\.xml$' | grep -v '/')
-    if ! echo "$remote_devices" | grep -q "^$DEVICE\.xml$"; then
-        echo "❌ Error: Device '$DEVICE' is not supported."
-        echo ""
-        list_devices "$VERSION"
-        exit 1
+# Fetch remote list once if any device is not local
+remote_devices=""
+for DEV in "${DEVICES[@]}"; do
+    if [ ! -f "$SCRIPT_DIR/$DEV.xml" ]; then
+        if [ -z "$remote_devices" ]; then
+            remote_devices=$(curl -s "${API_URL}${VERSION}?recursive=1" | grep '"path":' | cut -d '"' -f 4 | grep '\.xml$' | grep -v '/')
+        fi
+        if ! echo "$remote_devices" | grep -q "^$DEV\.xml$"; then
+            echo "❌ Error: Device '$DEV' is not supported."
+            echo ""
+            list_devices "$VERSION"
+            exit 1
+        fi
     fi
-fi
+done
 
-echo "⚙️ Setting up local manifest for '$DEVICE' (LineageOS $VERSION)..."
+echo "⚙️ Setting up local manifest for devices: ${DEVICES[*]} (LineageOS $VERSION)..."
 
 # Ensure target directory exists
 mkdir -p .repo/local_manifests
 ROOMSERVICE=".repo/local_manifests/roomservices.xml"
 
-# 1. Copy or download the base device manifest
-if [ -f "$SCRIPT_DIR/$DEVICE.xml" ]; then
-    echo "📂 Using local $DEVICE.xml as base for roomservices.xml..."
-    cat "$SCRIPT_DIR/$DEVICE.xml" > "$ROOMSERVICE"
+# 1. Copy or download the base device manifest (First device)
+FIRST_DEVICE="${DEVICES[0]}"
+if [ -f "$SCRIPT_DIR/$FIRST_DEVICE.xml" ]; then
+    echo "📂 Using local $FIRST_DEVICE.xml as base for roomservices.xml..."
+    cat "$SCRIPT_DIR/$FIRST_DEVICE.xml" > "$ROOMSERVICE"
 else
-    echo "🌐 Fetching $DEVICE.xml from remote as base for roomservices.xml..."
-    curl -sf "${REPO_URL}${VERSION}/$DEVICE.xml" -o "$ROOMSERVICE"
+    echo "🌐 Fetching $FIRST_DEVICE.xml from remote as base for roomservices.xml..."
+    curl -sf "${REPO_URL}${VERSION}/$FIRST_DEVICE.xml" -o "$ROOMSERVICE"
     if [ $? -ne 0 ]; then
-        echo "❌ Error: Failed to download $DEVICE.xml"
+        echo "❌ Error: Failed to download $FIRST_DEVICE.xml"
         exit 1
     fi
 fi
 
-# 2. Get the inner content of exynos3475.xml (stripping xml and manifest tags)
+# 2. Extract contents of any additional devices
+EXTRA_DEVICES_CONTENT=""
+for (( i=1; i<${#DEVICES[@]}; i++ )); do
+    DEV="${DEVICES[$i]}"
+    if [ -f "$SCRIPT_DIR/$DEV.xml" ]; then
+        echo "📂 Reading local $DEV.xml to merge..."
+        raw_content=$(cat "$SCRIPT_DIR/$DEV.xml")
+    else
+        echo "🌐 Fetching remote $DEV.xml to merge..."
+        raw_content=$(curl -sf "${REPO_URL}${VERSION}/$DEV.xml")
+        if [ $? -ne 0 ]; then
+            echo "❌ Error: Failed to download $DEV.xml"
+            exit 1
+        fi
+    fi
+    # Strip xml tags, manifest tags, and the Exynos include block
+    cleaned_content=$(echo "$raw_content" | grep -v '<?xml' | grep -v '<manifest>' | grep -v '</manifest>' | awk '
+        /<!-- Exynos 3475 -->/ {
+            getline
+            next
+        }
+        { print }
+    ')
+    # Add proper spacing when merging multiple devices
+    if [ -z "$EXTRA_DEVICES_CONTENT" ]; then
+        EXTRA_DEVICES_CONTENT="$cleaned_content"
+    else
+        EXTRA_DEVICES_CONTENT="$EXTRA_DEVICES_CONTENT
+
+$cleaned_content"
+    fi
+done
+
+# 3. Get the inner content of exynos3475.xml (stripping xml and manifest tags)
 if [ -f "$SCRIPT_DIR/default/exynos3475.xml" ]; then
     echo "📂 Reading local default/exynos3475.xml to merge..."
     EXYNOS_CONTENT=$(grep -v '<?xml' "$SCRIPT_DIR/default/exynos3475.xml" | grep -v '<manifest>' | grep -v '</manifest>')
@@ -95,12 +135,21 @@ else
     fi
 fi
 
-# 3. Replace the Exynos 3475 include section with the actual content
-awk -v content="$EXYNOS_CONTENT" '
+# Combine the extra devices with the exynos common content
+if [ -n "$EXTRA_DEVICES_CONTENT" ]; then
+    FULL_REPLACEMENT="$EXTRA_DEVICES_CONTENT
+
+$EXYNOS_CONTENT"
+else
+    FULL_REPLACEMENT="$EXYNOS_CONTENT"
+fi
+
+# 4. Replace the Exynos 3475 include section with the combined content
+awk -v content="$FULL_REPLACEMENT" '
     /<!-- Exynos 3475 -->/ {
         # Read the next line which contains the <include ...> tag and discard both
         getline
-        # Inject the inner content of exynos3475.xml
+        # Inject the inner contents
         print content
         next
     }

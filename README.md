@@ -32,21 +32,16 @@ Run the setup script directly from the remote repository without cloning it by r
 ```bash
 bash <(curl -sf https://raw.githubusercontent.com/samsungexynos3475/local_manifests/main/setup.sh) <version> j2lte
 ```
-*(Replace `<version>` with your LineageOS version (e.g., `17.1`), and `j2lte` with your device name: `j2lte`, `j1xlte`, or `on5ltetmo`)*
+*(Replace `<version>` with your LineageOS version (e.g., `17.1`). You can specify one or more devices separated by spaces, e.g., `j2lte j1xlte on5ltetmo`)*
 
 #### Option B: Local Setup Script
-If you have cloned this repository, copy the files automatically by running:
+If you have cloned this repository, generate the manifest by running:
 ```bash
-./local_manifest/setup.sh <version> j2lte
+./local_manifests/setup.sh <version> j2lte j1xlte
 ```
 
-#### Option C: Manual Copy
-If you prefer to copy the manifests manually, run:
-```bash
-mkdir -p .repo/local_manifests
-cp -r default .repo/local_manifests/
-cp j2lte.xml .repo/local_manifests/
-```
+#### Option C: Manual Configuration
+The setup script will automatically generate a single, clean `roomservices.xml` file by cleanly merging the device manifests and the common `exynos3475.xml`. Doing this manually is no longer recommended.
 
 ### 4. Sync Source Code
 Sync the repository (this will pull the base source code along with the device-specific repos defined in the local manifest):
